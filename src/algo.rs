@@ -1,9 +1,9 @@
 use std::cmp::max;
 
 pub struct MatchResult {
-    start: usize,
-    end: usize,
-    score: i32,
+    pub start: usize,
+    pub end: usize,
+    pub score: i32,
 }
 
 pub fn fuzzy_match(text: &str, pattern: &[char]) -> MatchResult {
@@ -39,7 +39,7 @@ pub fn fuzzy_match(text: &str, pattern: &[char]) -> MatchResult {
             let optimal_start_index = backward_pass(text, pattern, start_index, end_index);
             let score = calculate_score(text, pattern, optimal_start_index, end_index);
             MatchResult {
-                start: start_index,
+                start: optimal_start_index,
                 end: end_index,
                 score,
             }
@@ -132,14 +132,14 @@ fn calculate_score(text: &str, pattern: &[char], start_index: usize, end_index: 
         prev_class = get_char_type(text.chars().nth(start_index - 1).expect("SHOULD BE FINE"))
     }
 
-    for index in start_index..end_index {
-        let char = text.chars().nth(index as usize).expect("SHOULD BE FINE");
+    for char in text[start_index..end_index].chars() {
         let class = get_char_type(char);
 
         if char == pattern[pattern_index] {
             score += SCORE_MATCH;
             let mut bonus = bonus_for(&prev_class, &class);
 
+            // not 100% on this logic
             if consecutive == 0 {
                 first_bonus = bonus;
             } else {
@@ -149,21 +149,18 @@ fn calculate_score(text: &str, pattern: &[char], start_index: usize, end_index: 
                 bonus = max(max(bonus, first_bonus), BONUS_CONSECUTIVE)
             }
 
-            if pattern_index == 0 {
-                score += bonus * BONUS_FIRST_CHAR_MULTIPLIER
-            } else {
-                score += bonus
-            }
-
+            score += match pattern_index == 0 {
+                true => bonus * BONUS_FIRST_CHAR_MULTIPLIER,
+                false => bonus,
+            };
             in_gap = false;
             consecutive += 1;
             pattern_index += 1;
         } else {
-            if in_gap {
-                score += SCORE_GAP_EXTENSION
-            } else {
-                score += SCORE_GAP_START
-            }
+            score += match in_gap {
+                true => SCORE_GAP_EXTENSION,
+                false => SCORE_GAP_START,
+            };
             in_gap = true;
             consecutive = 0;
             first_bonus = 0;
@@ -209,10 +206,11 @@ fn get_char_type_non_ascii(char: char) -> CharType {
 }
 
 // implemented via lookup table on the real fzf
+// not 100% on this logic
 fn bonus_for(previous: &CharType, current: &CharType) -> i32 {
-    let current_space_or_nonword = matches!(current, CharType::White | CharType::NonWord);
+    let now_space_or_nonword = matches!(current, CharType::White | CharType::NonWord);
 
-    if !current_space_or_nonword {
+    if !now_space_or_nonword {
         match previous {
             CharType::White => return BONUS_BOUNDARY_WHITE,
             CharType::Delimiter => return BONUS_BOUNDARY_DELIMITER,
