@@ -1,3 +1,6 @@
+mod algo;
+
+use algo::fuzzy_match;
 use std::path::{Component, PathBuf};
 
 use walkdir::WalkDir;
@@ -18,9 +21,7 @@ fn name_is_valid(path: PathBuf) -> Option<PathBuf> {
     Some(path)
 }
 
-fn main() {
-    let input = std::env::args().nth(1).expect("No input").to_lowercase();
-
+fn get_folders(input: &str) {
     let in_desktop_iter = WalkDir::new(DESKTOP_DIR).into_iter();
 
     let all_subfolders = in_desktop_iter
@@ -49,4 +50,11 @@ fn main() {
     println!("{input}");
 
     println!("{count}")
+}
+
+fn main() {
+    let input = std::env::args().nth(1).expect("No input").to_lowercase();
+
+    let chars = "h".chars().collect::<Vec<char>>();
+    fuzzy_match(&input, &chars);
 }
