@@ -1,8 +1,8 @@
 use std::cmp::max;
 
 pub struct MatchResult {
-    start: i32,
-    end: i32,
+    start: usize,
+    end: usize,
     score: i32,
 }
 
@@ -27,61 +27,67 @@ pub fn fuzzy_match(text: &str, pattern: &[char]) -> MatchResult {
     //     };
     // }
 
-    let mut pattern_index: i32 = 0;
-    let mut start_index: i32 = -1;
-    let mut end_index: i32 = -1;
+    let forward_match_indexes = forward_pass(text, pattern);
+
+    match forward_match_indexes {
+        None => MatchResult {
+            start: 0,
+            end: 0,
+            score: 0,
+        },
+        Some((start_index, end_index)) => {
+            let optimal_start_index = backward_pass(text, pattern, start_index, end_index);
+            let score = calculate_score(text, pattern, optimal_start_index, end_index);
+            MatchResult {
+                start: start_index,
+                end: end_index,
+                score,
+            }
+        }
+    }
+}
+
+fn forward_pass(text: &str, pattern: &[char]) -> Option<(usize, usize)> {
+    let mut pattern_index: usize = 0;
+    let mut start_index: Option<usize> = None;
+    let mut end_index: Option<usize> = None;
 
     for (char_index, char) in text.chars().enumerate() {
-        let char = char.to_ascii_lowercase();
-        let char_index = char_index as i32;
-
-        let pattern_char = pattern[pattern_index as usize];
+        let pattern_char = pattern[pattern_index];
         if char == pattern_char {
-            if start_index < 0 {
-                start_index = char_index
+            if start_index.is_none() {
+                start_index = Some(char_index);
             }
 
             pattern_index += 1;
-            if pattern_index as usize == pattern.len() {
-                end_index = char_index + 1;
+            if pattern_index == pattern.len() {
+                end_index = Some(char_index + 1);
                 break;
             }
         }
     }
 
-    if start_index >= 0 && end_index >= 0 {
-        pattern_index -= 1;
+    match (start_index, end_index) {
+        (Some(start), Some(end)) => Some((start, end)),
+        _ => None,
+    }
+}
 
-        let mut index = end_index as usize - 1;
-        while index >= start_index as usize {
-            let char = text.chars().nth(index).expect("Expect char");
-            let char = char.to_ascii_lowercase();
-            let pattern_char = pattern[pattern_index as usize];
+fn backward_pass(text: &str, pattern: &[char], start_index: usize, end_index: usize) -> usize {
+    let mut pattern_index = pattern.len() - 1;
 
-            if char == pattern_char {
-                pattern_index -= 1;
-                if pattern_index < 0 {
-                    start_index = index as i32;
-                    break;
-                }
+    let section = &text[start_index..end_index];
+
+    for (forward_index, char) in section.chars().rev().enumerate() {
+        if char == pattern[pattern_index] {
+            if pattern_index == 0 {
+                return end_index - forward_index - 1;
             }
-            index -= 1;
+            pattern_index -= 1;
         }
-
-        let score = calculate_score(text, pattern, start_index, end_index);
-
-        return MatchResult {
-            start: start_index,
-            end: end_index,
-            score,
-        };
     }
 
-    MatchResult {
-        start: 0,
-        end: 0,
-        score: 0,
-    }
+    start_index
 }
 
 fn ascii_fuzzy_index(text: &str, pattern: &[char]) -> i32 {
@@ -114,7 +120,7 @@ const BONUS_CAMEL_123: i32 = BONUS_BOUNDARY + SCORE_GAP_EXTENSION;
 const BONUS_NON_WORD: i32 = SCORE_MATCH / 2;
 const BONUS_CONSECUTIVE: i32 = -(SCORE_GAP_EXTENSION + SCORE_GAP_START);
 
-fn calculate_score(text: &str, pattern: &[char], start_index: i32, end_index: i32) -> i32 {
+fn calculate_score(text: &str, pattern: &[char], start_index: usize, end_index: usize) -> i32 {
     let mut pattern_index = 0;
     let mut score = 0;
     let mut in_gap = false;
@@ -123,11 +129,7 @@ fn calculate_score(text: &str, pattern: &[char], start_index: i32, end_index: i3
     let mut prev_class = CharType::White;
 
     if start_index > 0 {
-        prev_class = get_char_type(
-            text.chars()
-                .nth(start_index as usize - 1)
-                .expect("SHOULD BE FINE"),
-        )
+        prev_class = get_char_type(text.chars().nth(start_index - 1).expect("SHOULD BE FINE"))
     }
 
     for index in start_index..end_index {
